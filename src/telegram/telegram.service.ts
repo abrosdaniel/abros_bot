@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Context, On, Start, Update } from 'nestjs-telegraf';
+import { Context, InjectBot, On, Start, Update } from 'nestjs-telegraf';
 import { NocoDBService } from '../database/nocodb.service';
 import { Markup } from 'telegraf';
 import { AccountService } from './account.service';
@@ -12,15 +12,16 @@ import { Telegraf } from 'telegraf';
 @Injectable()
 export class TelegramService {
   private editingStates: Map<number, { field: 'email' | 'phone' }> = new Map();
-  private bot: Telegraf<MyContext>;
 
   constructor(
+    @InjectBot() private bot: Telegraf<MyContext>,
     private readonly nocodbService: NocoDBService,
     private readonly accountService: AccountService,
     private readonly adminService: AdminService,
     private readonly tiptopService: TipTopService,
   ) {
-    this.bot = new Telegraf<MyContext>(process.env.BOT_TOKEN);
+    // Инициализируем TipTopService с ботом сразу после создания сервиса
+    this.tiptopService.setBotInstance(this.bot);
   }
 
   getBot(): Telegraf<MyContext> {
