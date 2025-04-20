@@ -223,16 +223,15 @@ export class TipTopService {
       `⚙️ Настройки ${resource.type === 'channel' ? 'канала' : 'чата'}:` +
       `\n\nНазвание: ${resource.name}\n` +
       `Ссылка: ${resource.link}\n` +
-      `Статус: ${resource.block === 1 ? 'Заблокирован' : 'Активен'}\n` +
+      `Статус: ${resource.block === 1 ? 'Неактивен' : 'Активен'}\n` +
       `Автопубликация: ${resource.auto_publish === 1 ? 'Включена' : 'Выключена'}`;
 
     const keyboard = Markup.inlineKeyboard([
       [
         Markup.button.callback(
-          resource.block === 1 ? '✅ Разблокировать' : '❌ Заблокировать',
-          `tiptop_resource_${resource.block === 1 ? 'unblock' : 'block'}_${id}`,
+          '📝 Шаблон сообщения',
+          `tiptop_resource_template_${id}`,
         ),
-        Markup.button.callback('🗑️ Удалить', `tiptop_resource_delete_${id}`),
       ],
       [
         Markup.button.callback(
@@ -244,9 +243,10 @@ export class TipTopService {
       ],
       [
         Markup.button.callback(
-          '📝 Шаблон сообщения',
-          `tiptop_resource_template_${id}`,
+          resource.block === 1 ? '✅ Включить' : '❌ Отключить',
+          `tiptop_resource_${resource.block === 1 ? 'unblock' : 'block'}_${id}`,
         ),
+        Markup.button.callback('🗑️ Удалить', `tiptop_resource_delete_${id}`),
       ],
       [Markup.button.callback('↩️ Назад', 'tiptop_resources')],
     ]);
