@@ -6,18 +6,26 @@ import { AccountService } from './account.service';
 import { AdminService } from './admin.service';
 import { TipTopService } from './clients/tiptop/tiptop.service';
 import { MyContext } from './types/context.types';
+import { Telegraf } from 'telegraf';
 
 @Update()
 @Injectable()
 export class TelegramService {
   private editingStates: Map<number, { field: 'email' | 'phone' }> = new Map();
+  private bot: Telegraf<MyContext>;
 
   constructor(
     private readonly nocodbService: NocoDBService,
     private readonly accountService: AccountService,
     private readonly adminService: AdminService,
     private readonly tiptopService: TipTopService,
-  ) {}
+  ) {
+    this.bot = new Telegraf<MyContext>(process.env.BOT_TOKEN);
+  }
+
+  getBot(): Telegraf<MyContext> {
+    return this.bot;
+  }
 
   private async updateUserIfNeeded(
     telegramId: string,

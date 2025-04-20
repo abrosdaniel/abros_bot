@@ -1,15 +1,21 @@
 import { Injectable } from '@nestjs/common';
-import { Markup } from 'telegraf';
+import { Markup, Telegraf } from 'telegraf';
 import { NocoDBService } from '../../../database/nocodb.service';
 import { TipTopDBService } from '../../../database/clients/tiptop/tiptop-db.service';
 import { MyContext } from '../../types/context.types';
 
 @Injectable()
 export class TipTopService {
+  private bot: Telegraf;
+
   constructor(
     private readonly nocodbService: NocoDBService,
     private readonly tiptopDBService: TipTopDBService,
   ) {}
+
+  setBotInstance(bot: Telegraf) {
+    this.bot = bot;
+  }
 
   private hasTipTopRole(roles: string[]): boolean {
     return roles?.includes('TipTop') || false;
@@ -479,6 +485,10 @@ export class TipTopService {
   }
 
   async publishRates(ctx?: MyContext) {
+    if (!this.bot) {
+      throw new Error('Bot instance not set');
+    }
+
     const currencies = await this.tiptopDBService.getCurrencies();
     const resources = await this.tiptopDBService.getResources(1, 100);
 
@@ -486,7 +496,7 @@ export class TipTopService {
     let errorCount = 0;
 
     for (const resource of resources.list) {
-      if (resource.auto_publish === 0) continue; // Пропускаем ресурсы с выключенной автопубликацией
+      if (resource.block === 1) continue; // Пропускаем заблокированные ресурсы
 
       try {
         const template = resource.template;
@@ -504,12 +514,12 @@ export class TipTopService {
         });
 
         // Проверяем, является ли бот администратором
-        const chat = await ctx.telegram.getChat(resource.telegram_id);
-        const admins = await ctx.telegram.getChatAdministrators(
+        const chat = await this.bot.telegram.getChat(resource.telegram_id);
+        const admins = await this.bot.telegram.getChatAdministrators(
           resource.telegram_id,
         );
         const isAdmin = admins.some(
-          (admin) => admin.user.id === ctx.botInfo.id,
+          (admin) => admin.user.id === this.bot.botInfo.id,
         );
 
         const messageOptions = {
@@ -520,14 +530,14 @@ export class TipTopService {
 
         if (isAdmin) {
           // Публикуем от имени канала/чата
-          await ctx.telegram.sendMessage(
+          await this.bot.telegram.sendMessage(
             resource.telegram_id,
             message,
             messageOptions,
           );
         } else {
           // Публикуем от имени бота
-          await ctx.telegram.sendMessage(
+          await this.bot.telegram.sendMessage(
             resource.telegram_id,
             message,
             messageOptions,
