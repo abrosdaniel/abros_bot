@@ -18,7 +18,7 @@ export class TipTopController implements OnModuleInit {
     console.log('\n📢 TipTop Webhook Information:');
     console.log('--------------------------------');
     console.log('Endpoint: POST /webhook/tiptop');
-    console.log('Allowed Host: bot.abros.dev');
+    console.log('Allowed Host: api.abros.dev');
     console.log('Example Request Body:');
     console.log('  {');
     console.log('    "event": "currency_update"');
@@ -33,7 +33,7 @@ export class TipTopController implements OnModuleInit {
     @Res() res: Response,
   ) {
     // Проверяем, что запрос пришел с разрешенного домена
-    if (!host?.includes('bot.abros.dev')) {
+    if (!host?.includes('api.abros.dev')) {
       return res.status(HttpStatus.FORBIDDEN).json({
         error: 'Access denied',
       });
