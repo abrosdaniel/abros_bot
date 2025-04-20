@@ -10,15 +10,18 @@ import {
 import { Response } from 'express';
 import { TipTopService } from './tiptop.service';
 
-@Controller('webhook/tiptop')
+@Controller('api/tiptop/currency')
 export class TipTopController implements OnModuleInit {
+  private readonly apiKey = process.env.TIPTOP_WEBHOOK_KEY || 'your-secret-key';
+
   constructor(private readonly tiptopService: TipTopService) {}
 
   onModuleInit() {
-    console.log('\n📢 TipTop Webhook Information:');
+    console.log('\n📢 TipTop API Information:');
     console.log('--------------------------------');
-    console.log('Endpoint: POST /webhook/tiptop');
-    console.log('Allowed Host: api.abros.dev');
+    console.log('Endpoint: POST /api/tiptop/currency');
+    console.log('Required Headers:');
+    console.log('  X-Tiptop-Key: [your webhook key]');
     console.log('Example Request Body:');
     console.log('  {');
     console.log('    "event": "currency_update"');
@@ -28,29 +31,37 @@ export class TipTopController implements OnModuleInit {
 
   @Post()
   async handleWebhook(
-    @Headers('host') host: string,
+    @Headers('x-tiptop-key') apiKey: string,
     @Body() body: any,
     @Res() res: Response,
   ) {
-    // Проверяем, что запрос пришел с разрешенного домена
-    if (!host?.includes('api.abros.dev')) {
+    console.log('Received API request:', {
+      body,
+      hasApiKey: !!apiKey,
+    });
+
+    // Проверяем API ключ
+    if (!apiKey || apiKey !== this.apiKey) {
+      console.log('Access denied: Invalid API key');
       return res.status(HttpStatus.FORBIDDEN).json({
-        error: 'Access denied',
+        error: 'Access denied: Invalid API key',
       });
     }
 
     // Проверяем тип события
     if (body.event === 'currency_update') {
       try {
-        await this.tiptopService.publishRates();
+        const result = await this.tiptopService.publishRates();
         return res.status(HttpStatus.OK).json({
           status: 'success',
           message: 'Rates published successfully',
+          ...result,
         });
       } catch (error) {
         console.error('Error publishing rates:', error);
         return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
           error: 'Failed to publish rates',
+          message: error.message,
         });
       }
     }
