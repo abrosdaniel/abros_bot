@@ -223,7 +223,6 @@ export class TipTopService {
       `⚙️ Настройки ${resource.type === 'channel' ? 'канала' : 'чата'}:` +
       `\n\nНазвание: ${resource.name}\n` +
       `Ссылка: ${resource.link}\n` +
-      `Статус: ${resource.block === 1 ? 'Неактивен' : 'Активен'}\n` +
       `Автопубликация: ${resource.auto_publish === 1 ? 'Включена' : 'Выключена'}`;
 
     const keyboard = Markup.inlineKeyboard([
@@ -241,13 +240,7 @@ export class TipTopService {
           `tiptop_resource_${resource.auto_publish === 1 ? 'disable-auto' : 'enable-auto'}_${id}`,
         ),
       ],
-      [
-        Markup.button.callback(
-          resource.block === 1 ? '✅ Включить' : '❌ Отключить',
-          `tiptop_resource_${resource.block === 1 ? 'unblock' : 'block'}_${id}`,
-        ),
-        Markup.button.callback('🗑️ Удалить', `tiptop_resource_delete_${id}`),
-      ],
+      [Markup.button.callback('🗑️ Удалить', `tiptop_resource_delete_${id}`)],
       [Markup.button.callback('↩️ Назад', 'tiptop_resources')],
     ]);
 
@@ -312,21 +305,6 @@ export class TipTopService {
         return;
       }
 
-      if (actionType === 'block' || actionType === 'unblock') {
-        const resource = await this.tiptopDBService.updateResource(id, {
-          block: actionType === 'block' ? 1 : 0,
-        });
-        if (resource) {
-          const settings = await this.getResourceKeyboard(id);
-          if (settings) {
-            await ctx.editMessageText(settings.text, settings.keyboard);
-          }
-        } else {
-          await ctx.answerCbQuery('⚠️ Ошибка при обновлении статуса');
-        }
-        return;
-      }
-
       if (actionType === 'enable-auto' || actionType === 'disable-auto') {
         const resource = await this.tiptopDBService.updateResource(id, {
           auto_publish: actionType === 'enable-auto' ? 1 : 0,
@@ -387,22 +365,6 @@ export class TipTopService {
         );
 
         ctx.session.waitingForTemplate = { resourceId: id };
-        return;
-      }
-
-      if (actionType === 'template-default') {
-        const resource = await this.tiptopDBService.updateResource(id, {
-          template: null,
-        });
-        if (resource) {
-          await ctx.answerCbQuery('✅ Шаблон сброшен на значение по умолчанию');
-          const settings = await this.getResourceKeyboard(id);
-          if (settings) {
-            await ctx.editMessageText(settings.text, settings.keyboard);
-          }
-        } else {
-          await ctx.answerCbQuery('⚠️ Ошибка при сбросе шаблона');
-        }
         return;
       }
     }
@@ -496,7 +458,8 @@ export class TipTopService {
     let errorCount = 0;
 
     for (const resource of resources.list) {
-      if (resource.block === 1) continue; // Пропускаем заблокированные ресурсы
+      // Пропускаем ресурсы с выключенной автопубликацией
+      if (resource.auto_publish === 0) continue;
 
       try {
         const template = resource.template;
