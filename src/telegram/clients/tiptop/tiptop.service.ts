@@ -181,7 +181,7 @@ export class TipTopService {
       await this.tiptopDBService.getResources(page);
     const buttons = resources.map((resource) => [
       Markup.button.callback(
-        `${resource.type === 'channel' ? '📢' : '💬'}| ${resource.name}`,
+        `${resource.type === 'channel' ? '📢' : '💬'} | ${resource.name}`,
         `tiptop_resource_view_${resource.Id}`,
       ),
     ]);
@@ -329,16 +329,13 @@ export class TipTopService {
 
         const currentTemplate = resource.template;
 
-        const variablesInfo = `📝 Доступные переменные в шаблоне:
-Для каждой валюты доступны следующие переменные:
-{EUR.flag} - флаг валюты (например: 🇪🇺)
+        const variablesInfo = `{EUR.flag} - флаг валюты (например: 🇪🇺)
 {EUR.currency} - код валюты (например: EUR)
 {EUR.buy} - курс покупки
 {EUR.sell} - курс продажи
-{EUR.symbol} - символ валюты (например: €)
+{EUR.symbol} - символ валюты (например: €)`;
 
-Пример использования:
-{EUR.flag}{EUR.currency}
+        const exampleUsage = `{EUR.flag}{EUR.currency}
 Покупка: {EUR.buy} {EUR.symbol}
 Продажа: {EUR.sell} {EUR.symbol}
 
@@ -349,7 +346,8 @@ export class TipTopService {
         await ctx.editMessageText(
           `📝 Шаблон сообщения для ${resource.name}\n\n` +
             `Текущий шаблон:\n\n\`\`\`\n${currentTemplate}\n\`\`\`\n\n` +
-            `${variablesInfo}\n\n` +
+            `📝 Доступные переменные в шаблоне:\n\n\`\`\`\n${variablesInfo}\n\`\`\`\n\n` +
+            `Пример использования:\n\n\`\`\`\n${exampleUsage}\n\`\`\`\n\n` +
             `Отправьте новый шаблон или нажмите "Назад"`,
           {
             parse_mode: 'Markdown',
@@ -376,8 +374,19 @@ export class TipTopService {
       ctx.message &&
       'text' in ctx.message
     ) {
-      const link = ctx.message.text.trim();
+      let link = ctx.message.text.trim();
       try {
+        // Обрабатываем разные форматы ссылок
+        if (link.startsWith('https://t.me/')) {
+          link = '@' + link.replace('https://t.me/', '');
+        } else if (link.startsWith('http://t.me/')) {
+          link = '@' + link.replace('http://t.me/', '');
+        } else if (link.startsWith('t.me/')) {
+          link = '@' + link.replace('t.me/', '');
+        } else if (!link.startsWith('@')) {
+          link = '@' + link;
+        }
+
         const chat = await ctx.telegram.getChat(link);
         if (!chat) {
           await ctx.reply('⚠️ Не удалось получить информацию о канале/чате');
@@ -411,7 +420,9 @@ export class TipTopService {
         await ctx.reply(`Канал/чат успешно добавлен:\n${chatTitle}`, keyboard);
       } catch (error) {
         console.error('Error adding resource:', error);
-        await ctx.reply('⚠️ Ошибка при добавлении канала/чата');
+        await ctx.reply(
+          '⚠️ Ошибка при добавлении канала/чата. Проверьте правильность ссылки и убедитесь, что бот добавлен в канал/чат.',
+        );
       }
       ctx.session.waitingForResource = undefined;
       return;
@@ -475,7 +486,6 @@ export class TipTopService {
         });
 
         // Проверяем, является ли бот администратором
-        const chat = await this.bot.telegram.getChat(resource.telegram_id);
         const admins = await this.bot.telegram.getChatAdministrators(
           resource.telegram_id,
         );

@@ -11,9 +11,9 @@ import { Response } from 'express';
 import { TipTopService } from './tiptop.service';
 import { TipTopDBService } from '../../../database/clients/tiptop/tiptop-db.service';
 
-@Controller('api/tiptop/currency')
+@Controller('api/tiptop')
 export class TipTopController implements OnModuleInit {
-  private readonly apiKey = process.env.TIPTOP_WEBHOOK_KEY || 'your-secret-key';
+  private readonly apiKey = process.env.TIPTOP_WEBHOOK_KEY;
 
   constructor(
     private readonly tiptopService: TipTopService,
@@ -23,7 +23,7 @@ export class TipTopController implements OnModuleInit {
   onModuleInit() {
     console.log('\n📢 TipTop API Information:');
     console.log('--------------------------------');
-    console.log('Endpoint: POST /api/tiptop/currency');
+    console.log('Endpoint: POST /api/tiptop');
     console.log('Required Headers:');
     console.log('  X-Tiptop-Key: [your webhook key]');
     console.log('Example Request Body:');
@@ -58,7 +58,6 @@ export class TipTopController implements OnModuleInit {
         // Сначала пересчитываем курсы
         const recalculateResult =
           await this.tiptopDBService.recalculateCurrencyRates();
-        console.log('Recalculation result:', recalculateResult);
 
         // Затем публикуем обновленные курсы
         const publishResult = await this.tiptopService.publishRates();
