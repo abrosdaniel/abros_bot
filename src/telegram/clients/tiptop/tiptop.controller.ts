@@ -9,12 +9,16 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import { TipTopService } from './tiptop.service';
+import { TipTopDBService } from '../../../database/clients/tiptop/tiptop-db.service';
 
 @Controller('api/tiptop/currency')
 export class TipTopController implements OnModuleInit {
   private readonly apiKey = process.env.TIPTOP_WEBHOOK_KEY || 'your-secret-key';
 
-  constructor(private readonly tiptopService: TipTopService) {}
+  constructor(
+    private readonly tiptopService: TipTopService,
+    private readonly tiptopDBService: TipTopDBService,
+  ) {}
 
   onModuleInit() {
     console.log('\n📢 TipTop API Information:');
@@ -51,16 +55,24 @@ export class TipTopController implements OnModuleInit {
     // Проверяем тип события
     if (body.event === 'currency_update') {
       try {
-        const result = await this.tiptopService.publishRates();
+        // Сначала пересчитываем курсы
+        const recalculateResult =
+          await this.tiptopDBService.recalculateCurrencyRates();
+        console.log('Recalculation result:', recalculateResult);
+
+        // Затем публикуем обновленные курсы
+        const publishResult = await this.tiptopService.publishRates();
+
         return res.status(HttpStatus.OK).json({
           status: 'success',
-          message: 'Rates published successfully',
-          ...result,
+          message: 'Rates updated and published successfully',
+          recalculate: recalculateResult,
+          publish: publishResult,
         });
       } catch (error) {
-        console.error('Error publishing rates:', error);
+        console.error('Error processing currency update:', error);
         return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-          error: 'Failed to publish rates',
+          error: 'Failed to process currency update',
           message: error.message,
         });
       }

@@ -273,4 +273,77 @@ export class TipTopDBService {
       return false;
     }
   }
+
+  async recalculateCurrencyRates() {
+    try {
+      const currencies = await this.getCurrencies();
+      const updatedCurrencies = [];
+
+      for (const currency of currencies) {
+        const parsePrice = {
+          buy: parseFloat(currency.BuyParse),
+          sell: parseFloat(currency.SellParse),
+        };
+
+        let newBuy = parseFloat(currency.Buy);
+        let newSell = parseFloat(currency.Sell);
+
+        // Пересчитываем курс покупки
+        if (currency.BuyProcent) {
+          const buyPercent = parseFloat(currency.BuyProcent.replace('%', ''));
+          if (!isNaN(buyPercent)) {
+            newBuy = Number(
+              (parsePrice.buy * (1 - buyPercent / 100)).toFixed(2),
+            );
+          } else {
+            const buyValue = parseFloat(currency.BuyProcent);
+            if (!isNaN(buyValue)) {
+              newBuy = Number((parsePrice.buy - buyValue).toFixed(2));
+            }
+          }
+        }
+
+        // Пересчитываем курс продажи
+        if (currency.SellProcent) {
+          const sellPercent = parseFloat(currency.SellProcent.replace('%', ''));
+          if (!isNaN(sellPercent)) {
+            newSell = Number(
+              (parsePrice.sell * (1 + sellPercent / 100)).toFixed(2),
+            );
+          } else {
+            const sellValue = parseFloat(currency.SellProcent);
+            if (!isNaN(sellValue)) {
+              newSell = Number((parsePrice.sell + sellValue).toFixed(2));
+            }
+          }
+        }
+
+        // Обновляем значения в базе, только если они изменились
+        if (
+          newBuy !== parseFloat(currency.Buy) ||
+          newSell !== parseFloat(currency.Sell)
+        ) {
+          const updated = await this.updateCurrency(currency.Code, {
+            Buy: newBuy,
+            Sell: newSell,
+          });
+          updatedCurrencies.push(updated);
+        }
+      }
+
+      return {
+        success: true,
+        message: 'Курсы успешно пересчитаны',
+        updatedCount: updatedCurrencies.length,
+        updatedCurrencies,
+      };
+    } catch (error) {
+      console.error('Error recalculating currency rates:', error);
+      return {
+        success: false,
+        message: 'Ошибка при пересчете курсов',
+        error: error.message,
+      };
+    }
+  }
 }
