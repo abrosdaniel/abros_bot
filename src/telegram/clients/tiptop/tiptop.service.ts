@@ -384,13 +384,11 @@ export class TipTopService {
           return;
         }
 
-        const admins = await ctx.telegram.getChatAdministrators(chat.id);
-        const isAdmin = admins.some(
-          (admin) => admin.user.id === ctx.botInfo.id,
-        );
-
-        if (!isAdmin) {
-          await ctx.reply('⚠️ Бот не является администратором канала/чата');
+        try {
+          // Пробуем получить информацию о чате - это подтвердит, что бот является участником
+          await ctx.telegram.getChatMember(chat.id, ctx.botInfo.id);
+        } catch (error) {
+          await ctx.reply('⚠️ Бот должен быть участником канала/чата');
           return;
         }
 
@@ -432,9 +430,9 @@ export class TipTopService {
       });
 
       if (resource) {
+        await ctx.reply('✅ Шаблон сообщения успешно обновлен');
         const settings = await this.getResourceKeyboard(resourceId);
         if (settings) {
-          await ctx.reply('✅ Шаблон сообщения успешно обновлен');
           await ctx.reply(settings.text, settings.keyboard);
         }
       } else {
