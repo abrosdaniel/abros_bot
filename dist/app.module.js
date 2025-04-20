@@ -10,8 +10,6 @@ exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const telegram_module_1 = require("./telegram/telegram.module");
-const appwrite_module_1 = require("./appwrite/appwrite.module");
-const user_module_1 = require("./user/user.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -20,10 +18,9 @@ exports.AppModule = AppModule = __decorate([
         imports: [
             config_1.ConfigModule.forRoot({
                 isGlobal: true,
+                envFilePath: '.env',
             }),
             telegram_module_1.TelegramModule,
-            appwrite_module_1.AppwriteModule,
-            user_module_1.UserModule,
         ],
     })
 ], AppModule);

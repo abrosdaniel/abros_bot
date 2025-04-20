@@ -1,503 +1,514 @@
 import { Injectable } from '@nestjs/common';
-import { InjectBot } from 'nestjs-telegraf';
-import { Telegraf } from 'telegraf';
-import { AppwriteService } from '../appwrite/appwrite.service';
+import { Context, On, Start, Update } from 'nestjs-telegraf';
+import { NocoDBService } from '../database/nocodb.service';
+import { Markup } from 'telegraf';
+import { AccountService } from './account.service';
+import { AdminService } from './admin.service';
+import { TipTopService } from './clients/tiptop/tiptop.service';
+import { MyContext } from './types/context.types';
 
+@Update()
 @Injectable()
 export class TelegramService {
+  private editingStates: Map<number, { field: 'email' | 'phone' }> = new Map();
+
   constructor(
-    @InjectBot() private bot: Telegraf,
-    private appwriteService: AppwriteService,
+    private readonly nocodbService: NocoDBService,
+    private readonly accountService: AccountService,
+    private readonly adminService: AdminService,
+    private readonly tiptopService: TipTopService,
+  ) {}
+
+  private async updateUserIfNeeded(
+    telegramId: string,
+    username: string,
+    firstName: string,
+    lastName: string,
   ) {
-    this.setupCommands();
-  }
+    const user = await this.nocodbService.findUser(telegramId);
 
-  private async setupCommands() {
-    try {
-      await this.bot.telegram.setMyCommands(
-        [{ command: 'menu', description: 'Показать главное меню' }],
-        { scope: { type: 'all_private_chats' } },
-      );
-    } catch (error) {
-      console.error('Ошибка при установке команд бота:', error);
-    }
-  }
+    if (user) {
+      // Проверяем, изменились ли данные
+      const needsUpdate =
+        user.telegram_username !== username ||
+        user.first_name !== firstName ||
+        user.last_name !== lastName;
 
-  private userStates: Map<number, { state: string; data: any }> = new Map();
-
-  private readonly orderQuestions = [
-    'Название проекта:',
-    'Опишите ваши требования и пожелания:',
-    'Какой у вас ориентировочный бюджет?',
-    'Какие сроки реализации вас интересуют?',
-    'Как с вами связаться по мимо телеграмма? (email/телефон/вк/дискорд)',
-  ];
-
-  async sendMainMenu(ctx: any, deleteMessage = false) {
-    const inlineKeyboard = {
-      inline_keyboard: [
-        [
-          // { text: '👤 Аккаунт', callback_data: 'account' },
-        ],
-        [
-          {
-            text: '💼 Портфолио',
-            switch_inline_query_current_chat: 'portfolio',
-          },
-          { text: '💰 Донат', url: process.env.MONEY_DONATE_LINK },
-        ],
-        [{ text: '💬 Связь', callback_data: 'contact' }],
-      ],
-    };
-
-    const message = `👋🏻 Привет, ${ctx.message?.from.first_name || ctx.callbackQuery?.from.first_name}!
-
-В этом боте собрано много функционала и он постоянно пополняется новыми возможностями.
-
-Здесь ты можешь заказать разработку сайта, предложить свою идею, получить помощь и многое другое.
- 
-Давай начнем! 🚀
-
-📃 [Privacy policy](${process.env.PRIVACY_POLICY_LINK})`;
-
-    if (deleteMessage && ctx.callbackQuery?.message) {
-      try {
-        await ctx.deleteMessage(ctx.callbackQuery.message.message_id);
-        await ctx.reply(message, {
-          parse_mode: 'Markdown',
-          reply_markup: inlineKeyboard,
-          disable_web_page_preview: true,
+      if (needsUpdate) {
+        await this.nocodbService.updateUser(telegramId, {
+          telegram_username: username,
+          first_name: firstName,
+          last_name: lastName,
         });
-      } catch (error) {
-        console.error('Error deleting message:', error);
-        await ctx.editMessageText(message, {
-          parse_mode: 'Markdown',
-          reply_markup: inlineKeyboard,
-          disable_web_page_preview: true,
-        });
+        return await this.nocodbService.findUser(telegramId);
       }
-    } else if ('message' in ctx) {
-      await ctx.reply(message, {
-        parse_mode: 'Markdown',
-        reply_markup: inlineKeyboard,
-        disable_web_page_preview: true,
-      });
-    } else if ('callback_query' in ctx) {
-      await ctx.editMessageText(message, {
-        parse_mode: 'Markdown',
-        reply_markup: inlineKeyboard,
-        disable_web_page_preview: true,
-      });
     }
+
+    return user;
   }
 
-  async sendAccountMenu(ctx: any, userData: any) {
-    const keyboard = {
-      inline_keyboard: [
-        [
-          { text: 'Редактировать', callback_data: 'edit_account' },
-          { text: 'Сессии', callback_data: 'sessions' },
-        ],
-        [{ text: 'Выйти', callback_data: 'logout' }],
-        [{ text: '« Назад', callback_data: 'main_menu' }],
+  private async getMainKeyboard(telegramId: string) {
+    const isAdmin = await this.adminService.isAdmin(telegramId);
+    const buttons = [
+      [
+        Markup.button.callback('👤 Аккаунт', 'account'),
+        Markup.button.callback('💼 Портфолио', 'portfolio'),
       ],
-    };
+      [
+        Markup.button.callback('💬 Связь', 'contact'),
+        Markup.button.callback('💸 Донат', 'donate'),
+      ],
+    ];
 
-    const message = `
-ID: ${userData.id}
-Имя: ${userData.name}
-Подписки: ${userData.subscriptions || 'Нет'}
-    `;
-
-    if ('callback_query' in ctx) {
-      await ctx.editMessageText(message, { reply_markup: keyboard });
+    if (isAdmin) {
+      buttons.push([Markup.button.callback('🔐 Админка', 'admin')]);
     }
+
+    return Markup.inlineKeyboard(buttons);
   }
 
-  async sendContactMenu(ctx: any) {
-    const keyboard = {
-      inline_keyboard: [
-        [
-          { text: '💼 Заказать', callback_data: 'order' },
-          { text: '🫂 Поддержка', callback_data: 'support' },
-        ],
-        [{ text: '« Назад', callback_data: 'main_menu' }],
-      ],
-    };
+  @Start()
+  async start(@Context() ctx: any) {
+    const telegramId = ctx.from.id.toString();
+    const username = ctx.from.username;
+    const firstName = ctx.from.first_name;
+    const lastName = ctx.from.last_name;
 
-    if (ctx.callbackQuery) {
+    const isBlocked = await this.nocodbService.isUserBlocked(telegramId);
+    if (isBlocked) {
+      await ctx.reply(
+        '⚠️ Доступ к боту заблокирован. Пожалуйста, свяжитесь с @et0daniel для разблокировки.',
+      );
+      return;
+    }
+
+    let user = await this.updateUserIfNeeded(
+      telegramId,
+      username,
+      firstName,
+      lastName,
+    );
+
+    if (!user) {
+      user = await this.nocodbService.createUser({
+        telegram_id: telegramId,
+        telegram_username: username,
+        first_name: firstName,
+        last_name: lastName,
+      });
+    }
+
+    await ctx.reply(
+      `👋🏻 Привет, ${user.first_name}!\n\nВ этом боте собрано много функционала и он постоянно пополняется новыми возможностями.\n\nДавай начнем! 🚀`,
+      await this.getMainKeyboard(telegramId),
+    );
+  }
+
+  @On('callback_query')
+  async onCallbackQuery(@Context() ctx: any) {
+    const action = ctx.callbackQuery.data;
+    const telegramId = ctx.from.id.toString();
+    const username = ctx.from.username;
+    const firstName = ctx.from.first_name;
+    const lastName = ctx.from.last_name;
+
+    const isBlocked = await this.nocodbService.isUserBlocked(telegramId);
+    if (isBlocked) {
+      await ctx.answerCbQuery('⚠️ Доступ к боту заблокирован');
+      return;
+    }
+
+    await this.updateUserIfNeeded(telegramId, username, firstName, lastName);
+
+    if (action === 'tiptop') {
+      const isTipTopUser = await this.tiptopService.isTipTopUser(telegramId);
+      if (!isTipTopUser) {
+        await ctx.answerCbQuery('⚠️ У вас нет доступа к TipTop');
+        return;
+      }
       await ctx.editMessageText(
-        '💬 Не стесняйся, пиши нам в любое время! А мы постараемся ответить как можно быстрее!',
-        {
-          reply_markup: keyboard,
-        },
+        'Главное меню сервиса TipTop',
+        this.tiptopService.getTipTopKeyboard(),
       );
-    } else {
-      await ctx.reply(
-        '💬 Не стесняйся, пиши нам в любое время! А мы постараемся ответить как можно быстрее!',
-        { reply_markup: keyboard },
-      );
+      return;
     }
+
+    if (action === 'tiptop_exchange') {
+      const isTipTopUser = await this.tiptopService.isTipTopUser(telegramId);
+      if (!isTipTopUser) {
+        await ctx.answerCbQuery('⚠️ У вас нет доступа к TipTop');
+        return;
+      }
+      await ctx.editMessageText(
+        '💱 Курсы валют:',
+        await this.tiptopService.getExchangeKeyboard(),
+      );
+      return;
+    }
+
+    if (action === 'tiptop_publish_rates') {
+      const isTipTopUser = await this.tiptopService.isTipTopUser(telegramId);
+      if (!isTipTopUser) {
+        await ctx.answerCbQuery('⚠️ У вас нет доступа к TipTop');
+        return;
+      }
+      await this.tiptopService.handleResourceAction(ctx, action);
+      return;
+    }
+
+    if (
+      action.startsWith('tiptop_currency_buy_percent_') ||
+      action.startsWith('tiptop_currency_sell_percent_')
+    ) {
+      const isTipTopUser = await this.tiptopService.isTipTopUser(telegramId);
+      if (!isTipTopUser) {
+        await ctx.answerCbQuery('⚠️ У вас нет доступа к TipTop');
+        return;
+      }
+      await this.tiptopService.handleCurrencyAction(ctx, action);
+      return;
+    }
+
+    if (action.startsWith('tiptop_currency_')) {
+      if (!(await this.tiptopService.isTipTopUser(telegramId))) {
+        await ctx.answerCbQuery('⚠️ У вас нет доступа к TipTop');
+        return;
+      }
+      await this.tiptopService.handleCurrencyAction(ctx, action);
+      return;
+    }
+
+    if (
+      action === 'tiptop_resources' ||
+      action.startsWith('tiptop_resource_') ||
+      action.startsWith('tiptop_resources_page_') ||
+      action === 'tiptop_add_resource'
+    ) {
+      if (!(await this.tiptopService.isTipTopUser(telegramId))) {
+        await ctx.answerCbQuery('⚠️ У вас нет доступа к TipTop');
+        return;
+      }
+      await this.tiptopService.handleResourceAction(ctx, action);
+      return;
+    }
+
+    if (action === 'back_to_account') {
+      const accountInfo = await this.accountService.getAccountInfo(telegramId);
+      if (accountInfo) {
+        await ctx.editMessageText(
+          accountInfo,
+          await this.accountService.getAccountKeyboard(telegramId),
+        );
+      }
+      return;
+    }
+
+    if (action.startsWith('admin_users_page_')) {
+      const isAdmin = await this.adminService.isAdmin(telegramId);
+      if (!isAdmin) {
+        await ctx.answerCbQuery('⚠️ У вас нет доступа к админ-панели');
+        return;
+      }
+      const page = parseInt(action.split('_')[3]);
+      await ctx.editMessageText(
+        '👥 Список пользователей:',
+        await this.adminService.getUsersListKeyboard(page),
+      );
+      return;
+    }
+
+    if (action.startsWith('admin_user_')) {
+      const isAdmin = await this.adminService.isAdmin(telegramId);
+      if (!isAdmin) {
+        await ctx.answerCbQuery('⚠️ У вас нет доступа к админ-панели');
+        return;
+      }
+      const userId = action.split('_')[2];
+      const user = await this.nocodbService.findUserById(userId);
+      if (!user) {
+        await ctx.answerCbQuery('☹️ Пользователь не найден');
+        return;
+      }
+      await ctx.editMessageText(
+        `👤 Пользователь: ${user.first_name || 'Без имени'} ${user.last_name || ''}\n` +
+          `🆔 Системный: ${user.user_id}\n` +
+          `🆔 Telegram: ${user.telegram_id}\n` +
+          `🏷 Username: ${user.telegram_username}\n` +
+          `📮 Почта: ${user.email}\n` +
+          `📞 Телефон: ${user.phone}\n` +
+          `Статус: ${user.block === 1 ? '🚫 Заблокирован' : '🟢 Активен'}`,
+        await this.adminService.getUserControlKeyboard(userId),
+      );
+      return;
+    }
+
+    if (action.startsWith('admin_toggle_block_')) {
+      const isAdmin = await this.adminService.isAdmin(telegramId);
+      if (!isAdmin) {
+        await ctx.answerCbQuery('⚠️ У вас нет доступа к админ-панели');
+        return;
+      }
+      const userId = action.split('_')[3];
+      const result = await this.adminService.toggleUserBlock(userId);
+      await ctx.answerCbQuery(result.message);
+      if (result.success) {
+        const user = await this.nocodbService.findUserById(userId);
+        await ctx.editMessageText(
+          `👤 Пользователь: ${user.first_name || 'Без имени'} ${user.last_name || ''}\n` +
+            `🆔 Системный: ${user.user_id}\n` +
+            `🆔 Telegram: ${user.telegram_id}\n` +
+            `🏷 Username: ${user.telegram_username}\n` +
+            `📮 Почта: ${user.email}\n` +
+            `📞 Телефон: ${user.phone}\n` +
+            `Статус: ${user.block === 1 ? '🚫 Заблокирован' : '🟢 Активен'}`,
+          await this.adminService.getUserControlKeyboard(userId),
+        );
+      }
+      return;
+    }
+
+    if (action === 'admin_send_news') {
+      if (!(await this.adminService.isAdmin(telegramId))) {
+        await ctx.answerCbQuery('У вас нет доступа к админке');
+        return;
+      }
+      ctx.session.waitingForNews = true;
+      await ctx.editMessageText(
+        'Отправьте медиа-сообщение (фото, видео, документ) с текстом для рассылки:',
+        Markup.inlineKeyboard([
+          [Markup.button.callback('↩️ Назад', 'back_to_admin')],
+        ]),
+      );
+      return;
+    }
+
+    switch (action) {
+      case 'admin': {
+        const isAdmin = await this.adminService.isAdmin(telegramId);
+        if (!isAdmin) {
+          await ctx.answerCbQuery('⚠️ У вас нет доступа к админ-панели');
+          return;
+        }
+        await ctx.editMessageText(
+          '🔐 Админ-панель',
+          this.adminService.getAdminKeyboard(),
+        );
+        break;
+      }
+      case 'admin_users': {
+        const isAdmin = await this.adminService.isAdmin(telegramId);
+        if (!isAdmin) {
+          await ctx.answerCbQuery('⚠️ У вас нет доступа к админ-панели');
+          return;
+        }
+        await ctx.editMessageText(
+          '👥Список пользователей:',
+          await this.adminService.getUsersListKeyboard(),
+        );
+        break;
+      }
+      case 'back_to_admin': {
+        const isAdmin = await this.adminService.isAdmin(telegramId);
+        if (!isAdmin) {
+          await ctx.answerCbQuery('⚠️ У вас нет доступа к админ-панели');
+          return;
+        }
+        await ctx.editMessageText(
+          '🔐 Админ-панель',
+          this.adminService.getAdminKeyboard(),
+        );
+        break;
+      }
+      case 'account': {
+        const accountInfo =
+          await this.accountService.getAccountInfo(telegramId);
+        if (accountInfo) {
+          await ctx.editMessageText(
+            accountInfo,
+            await this.accountService.getAccountKeyboard(telegramId),
+          );
+        }
+        break;
+      }
+      case 'edit_account': {
+        await ctx.editMessageText(
+          '✏️ Выберите данные для редактирования:',
+          this.accountService.getEditKeyboard(),
+        );
+        break;
+      }
+      case 'edit_email': {
+        this.editingStates.set(ctx.from.id, { field: 'email' });
+        await ctx.editMessageText(
+          '📮 Введите новый email:',
+          Markup.inlineKeyboard([
+            [Markup.button.callback('❌ Отмена', 'back_to_profile')],
+          ]),
+        );
+        break;
+      }
+      case 'edit_phone': {
+        this.editingStates.set(ctx.from.id, { field: 'phone' });
+        await ctx.editMessageText(
+          '📞 Введите новый номер телефона в формате +XXXXXXXXXXX:',
+          Markup.inlineKeyboard([
+            [Markup.button.callback('❌ Отмена', 'back_to_profile')],
+          ]),
+        );
+        break;
+      }
+      case 'back_to_profile': {
+        const accountInfo =
+          await this.accountService.getAccountInfo(telegramId);
+        if (accountInfo) {
+          await ctx.editMessageText(
+            accountInfo,
+            await this.accountService.getAccountKeyboard(telegramId),
+          );
+        }
+        this.editingStates.delete(ctx.from.id);
+        break;
+      }
+      case 'back_to_main': {
+        const user = await this.nocodbService.findUser(telegramId);
+        await ctx.editMessageText(
+          `👋🏻 Привет, ${user.first_name}!
+      
+      В этом боте собрано много функционала и он постоянно пополняется новыми возможностями.
+      
+      Давай начнем! 🚀`,
+          await this.getMainKeyboard(telegramId),
+        );
+        break;
+      }
+      case 'portfolio':
+        await ctx.editMessageText(
+          'В разработке...',
+          await this.getMainKeyboard(telegramId),
+        );
+        break;
+      case 'contact':
+        await ctx.editMessageText(
+          'В разработке...',
+          await this.getMainKeyboard(telegramId),
+        );
+        break;
+      case 'donate':
+        await ctx.editMessageText(
+          'В разработке...',
+          await this.getMainKeyboard(telegramId),
+        );
+        break;
+    }
+
+    await ctx.answerCbQuery();
   }
 
-  async sendEditAccountMenu(ctx: any, userData: any) {
-    const keyboard = {
-      inline_keyboard: [
-        [{ text: 'Изменить имя', callback_data: 'edit_name' }],
-        [{ text: 'Изменить почту', callback_data: 'edit_email' }],
-        [{ text: '« Назад', callback_data: 'account' }],
-      ],
-    };
+  @On('text')
+  async onText(@Context() ctx: MyContext) {
+    const telegramId = ctx.from.id.toString();
+    const isBlocked = await this.nocodbService.isUserBlocked(telegramId);
+    if (isBlocked) {
+      await ctx.reply('⚠️ Доступ к боту заблокирован');
+      return;
+    }
 
-    if ('callback_query' in ctx) {
-      await ctx.editMessageText('Выберите, что хотите изменить:', {
-        reply_markup: keyboard,
+    if (ctx.session.waitingForPercent) {
+      await this.tiptopService.handleCurrencyAction(
+        ctx,
+        `tiptop_currency_${ctx.session.waitingForPercent.type}_percent_${ctx.session.waitingForPercent.code}`,
+      );
+      return;
+    }
+
+    await this.tiptopService.handleTextMessage(ctx);
+  }
+
+  @On('photo')
+  async onPhoto(@Context() ctx: MyContext) {
+    if (ctx.session.waitingForNews && 'photo' in ctx.message) {
+      const photo = ctx.message.photo[ctx.message.photo.length - 1];
+      const caption = 'caption' in ctx.message ? ctx.message.caption || '' : '';
+      await this.sendNewsToAllUsers(ctx, {
+        type: 'photo',
+        file_id: photo.file_id,
+        caption,
       });
+      ctx.session.waitingForNews = undefined;
     }
   }
 
-  async sendPortfolioItem(ctx: any, itemId: string) {
-    const item = await this.appwriteService.getPortfolioItem(itemId);
-    if (!item) return;
-
-    const formatDate = (dateString: string) => {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('ru-RU', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
+  @On('video')
+  async onVideo(@Context() ctx: MyContext) {
+    if (ctx.session.waitingForNews && 'video' in ctx.message) {
+      const video = ctx.message.video;
+      const caption = 'caption' in ctx.message ? ctx.message.caption || '' : '';
+      await this.sendNewsToAllUsers(ctx, {
+        type: 'video',
+        file_id: video.file_id,
+        caption,
       });
-    };
-
-    const startDate = formatDate(item.date_start);
-    const endDate = item.date_end
-      ? formatDate(item.date_end)
-      : 'настоящее время';
-
-    await ctx.telegram.sendPhoto(
-      ctx.message.chat.id,
-      item.pic ? this.appwriteService.getImageUrl(item.pic) : null,
-      {
-        caption: `
-${item.name}
-
-📝 ${item.text}
-
-📅 Ведение: ${startDate} - ${endDate}
-
-🧰 Стек: ${item.tags}
-`,
-        parse_mode: 'HTML',
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: '👀 Посмотреть', url: item.link }],
-            [
-              {
-                text: '💻 Показать портфолио',
-                switch_inline_query_current_chat: 'portfolio',
-              },
-            ],
-            [{ text: '🏠 Главное меню', callback_data: 'main_menu' }],
-          ],
-        },
-      },
-    );
-
-    try {
-      await ctx.deleteMessage();
-    } catch (error) {
-      console.error('Error deleting message:', error);
+      ctx.session.waitingForNews = undefined;
     }
   }
 
-  async deleteMessage(chatId: number, messageId: number) {
-    try {
-      await this.bot.telegram.deleteMessage(chatId, messageId);
-    } catch (error) {
-      console.error('Error deleting message:', error);
-    }
-  }
-
-  async startOrder(ctx: any) {
-    const userId = ctx.callbackQuery.from.id;
-    this.userStates.set(userId, {
-      state: 'order',
-      data: {
-        answers: [],
-        currentQuestion: 0,
-        username: ctx.callbackQuery.from.username,
-        firstName: ctx.callbackQuery.from.first_name,
-        lastName: ctx.callbackQuery.from.last_name,
-      },
-    });
-
-    await ctx.editMessageText(this.orderQuestions[0], {
-      reply_markup: {
-        inline_keyboard: [[{ text: '❌ Отменить', callback_data: 'contact' }]],
-      },
-    });
-  }
-
-  async handleOrderMessage(ctx: any) {
-    const userId = ctx.message.from.id;
-    const userState = this.userStates.get(userId);
-
-    if (!userState || userState.state !== 'order') return false;
-
-    userState.data.answers.push(ctx.message.text);
-
-    if (userState.data.currentQuestion < this.orderQuestions.length - 1) {
-      userState.data.currentQuestion++;
-      await ctx.reply(this.orderQuestions[userState.data.currentQuestion], {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: '❌ Отменить', callback_data: 'contact' }],
-          ],
-        },
+  @On('document')
+  async onDocument(@Context() ctx: MyContext) {
+    if (ctx.session.waitingForNews && 'document' in ctx.message) {
+      const document = ctx.message.document;
+      const caption = 'caption' in ctx.message ? ctx.message.caption || '' : '';
+      await this.sendNewsToAllUsers(ctx, {
+        type: 'document',
+        file_id: document.file_id,
+        caption,
       });
-    } else {
-      // Формируем сообщение для админа
-      const adminMessage = `
-📋 Новый заказ!
-
-👤 ${userState.data.firstName || ''} ${userState.data.lastName || ''} ${userState.data.username ? '@' + userState.data.username : ''}
-
-❓ Название проекта:
-${userState.data.answers[0]}
-
-📝 Требования:
-${userState.data.answers[1]}
-
-💰 Ориентировочный бюджет:
-${userState.data.answers[2]}
-
-⏰ Сроки:
-${userState.data.answers[3]}
-
-📞 Контакт:
-${userState.data.answers[4]}
-`;
-
-      // Отправляем сообщение админу
-      await this.bot.telegram.sendMessage(
-        process.env.TELEGRAM_ADMIN_PEER_ID,
-        adminMessage,
-      );
-
-      // Отправляем подтверждение пользователю
-      await ctx.reply(
-        'Спасибо! Ваша заявка отправлена. Мы свяжемся с вами в ближайшее время.',
-        {
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: '🏠 Главное меню', callback_data: 'main_menu' }],
-            ],
-          },
-        },
-      );
-
-      this.userStates.delete(userId);
+      ctx.session.waitingForNews = undefined;
     }
-
-    return true;
   }
 
-  async startSupport(ctx: any) {
-    const userId = ctx.callbackQuery.from.id;
-    this.userStates.set(userId, {
-      state: 'support',
-      data: {
-        username: ctx.callbackQuery.from.username,
-        firstName: ctx.callbackQuery.from.first_name,
-        lastName: ctx.callbackQuery.from.last_name,
-      },
-    });
-
-    await ctx.editMessageText(
-      'Напишите нам свой вопрос, а мы постараемся ответить как можно быстрее!',
-      {
-        reply_markup: {
-          inline_keyboard: [[{ text: '🚪 Выйти', callback_data: 'contact' }]],
-        },
-      },
-    );
-  }
-
-  async handleSupportMessage(ctx: any) {
-    const userId = ctx.message.from.id;
-    const userState = this.userStates.get(userId);
-
-    if (!userState || userState.state !== 'support') return false;
-
-    const supportChatId = process.env.TELEGRAM_SUPPORT_PEER_ID;
-
-    if (!supportChatId) {
-      console.error('TELEGRAM_SUPPORT_PEER_ID не установлен в .env файле');
-      await ctx.reply('Извините, произошла ошибка. Попробуйте позже.', {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: '🏠 Главное меню', callback_data: 'main_menu' }],
-          ],
-        },
-      });
-      return true;
-    }
-
-    try {
-      // Пересылаем сообщение в чат поддержки
-      await this.bot.telegram.sendMessage(
-        supportChatId,
-        `👤 От: ${userState.data.firstName || ''} ${userState.data.lastName || ''} ${userState.data.username ? '@' + userState.data.username : ''}
-ID: ${userId}
-
-${ctx.message.text}
-
-Статус: ⏳ Ожидает ответа`,
-        {
-          reply_markup: {
-            inline_keyboard: [
-              [
-                {
-                  text: '❌ Закрыть тикет',
-                  callback_data: `close_ticket:${userId}`,
-                },
-              ],
-            ],
-          },
-        },
-      );
-
-      // Отправляем подтверждение пользователю
-      await ctx.reply(
-        'Ваше сообщение отправлено в поддержку. Ожидайте ответа.',
-      );
-    } catch (error) {
-      console.error('Ошибка отправки сообщения в чат поддержки:', error);
-      console.error('ID чата поддержки:', supportChatId);
-
-      await ctx.reply('Извините, произошла ошибка. Попробуйте позже.', {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: '🏠 Главное меню', callback_data: 'main_menu' }],
-          ],
-        },
-      });
-    }
-
-    return true;
-  }
-
-  // Метод для отправки ответа от поддержки пользователю
-  async sendSupportReply(
-    userId: number,
-    message: string,
-    replyToMessageId: number,
-    originalMessageText: string,
+  private async sendNewsToAllUsers(
+    ctx: MyContext,
+    media: {
+      type: 'photo' | 'video' | 'document';
+      file_id: string;
+      caption: string;
+    },
   ) {
-    try {
-      // Отправляем ответ пользователю
-      await this.bot.telegram.sendMessage(
-        userId,
-        `📮 Ответ поддержки:\n\n${message}`,
-        {
-          reply_markup: {
-            inline_keyboard: [
-              [
-                { text: '↩️ Ответить', callback_data: 'reply_support' },
-                {
-                  text: '❌ Закрыть тикет',
-                  callback_data: 'close_ticket_user',
-                },
-              ],
-            ],
-          },
-        },
-      );
+    const users = await this.nocodbService.getAllUsers();
+    let successCount = 0;
+    let errorCount = 0;
 
-      // Обновляем статус в сообщении поддержки
-      const supportChatId = process.env.TELEGRAM_SUPPORT_PEER_ID;
-      await this.bot.telegram.editMessageText(
-        supportChatId,
-        replyToMessageId,
-        undefined,
-        `${originalMessageText.replace(/\nСтатус: .*$/, '')}\n\nСтатус: ✅ Ответили`,
-        {
-          reply_markup: {
-            inline_keyboard: [
-              [
-                {
-                  text: '❌ Закрыть тикет',
-                  callback_data: `close_ticket:${userId}`,
-                },
-              ],
-            ],
-          },
-        },
-      );
-    } catch (error) {
-      console.error('Ошибка отправки ответа пользователю:', error);
-      const supportChatId = process.env.TELEGRAM_SUPPORT_PEER_ID;
+    for (const user of users) {
+      try {
+        if (user.block === 1) continue; // Пропускаем заблокированных пользователей
 
-      // Обновляем статус с ошибкой
-      await this.bot.telegram.editMessageText(
-        supportChatId,
-        replyToMessageId,
-        undefined,
-        `${originalMessageText.replace(/\nСтатус: .*$/, '')}\n\nСтатус: ❌ Ошибка отправки\n${error.message}`,
-        {
-          reply_markup: {
-            inline_keyboard: [
-              [
-                {
-                  text: '❌ Закрыть тикет',
-                  callback_data: `close_ticket:${userId}`,
-                },
-              ],
-            ],
-          },
-        },
-      );
+        switch (media.type) {
+          case 'photo':
+            await ctx.telegram.sendPhoto(user.telegram_id, media.file_id, {
+              caption: media.caption,
+            });
+            break;
+          case 'video':
+            await ctx.telegram.sendVideo(user.telegram_id, media.file_id, {
+              caption: media.caption,
+            });
+            break;
+          case 'document':
+            await ctx.telegram.sendDocument(user.telegram_id, media.file_id, {
+              caption: media.caption,
+            });
+            break;
+        }
+        successCount++;
+      } catch (error) {
+        console.error(`Error sending news to user ${user.telegram_id}:`, error);
+        errorCount++;
+      }
     }
-  }
 
-  async sendMessage(chatId: number, text: string) {
-    return this.bot.telegram.sendMessage(chatId, text);
-  }
-
-  async handleTicketClose(
-    messageId: number,
-    userId: number,
-    messageText: string,
-  ) {
-    try {
-      const supportChatId = process.env.TELEGRAM_SUPPORT_PEER_ID;
-
-      // Обновляем статус в сообщении поддержки
-      await this.bot.telegram.editMessageText(
-        supportChatId,
-        messageId,
-        undefined,
-        `${messageText.replace(/\nСтатус: .*$/, '')}\n\nСтатус: 🔒 Закрыт`,
-        {
-          reply_markup: {
-            inline_keyboard: [], // Убираем кнопки после закрытия
-          },
-        },
-      );
-    } catch (error) {
-      console.error('Ошибка при закрытии тикета:', error);
-    }
-  }
-
-  setUserState(userId: number, state: string, data: any) {
-    this.userStates.set(userId, { state, data });
-  }
-
-  getUserState(userId: number) {
-    return this.userStates.get(userId);
-  }
-
-  clearUserState(userId: number) {
-    this.userStates.delete(userId);
+    await ctx.reply(
+      `Рассылка завершена:\n✅ Успешно отправлено: ${successCount}\n❌ Ошибок: ${errorCount}`,
+      this.adminService.getAdminKeyboard(),
+    );
   }
 }
