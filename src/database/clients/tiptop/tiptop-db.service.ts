@@ -280,41 +280,30 @@ export class TipTopDBService {
       const updatedCurrencies = [];
 
       for (const currency of currencies) {
-        const parsePrice = {
-          buy: parseFloat(currency.BuyParse),
-          sell: parseFloat(currency.SellParse),
-        };
-
+        const buyParsePrice = parseFloat(currency.BuyParse);
+        const sellParsePrice = parseFloat(currency.SellParse);
         let newBuy = parseFloat(currency.Buy);
         let newSell = parseFloat(currency.Sell);
 
         // Пересчитываем курс покупки
         if (currency.BuyProcent) {
-          const buyPercent = parseFloat(currency.BuyProcent.replace('%', ''));
-          if (!isNaN(buyPercent)) {
-            newBuy = Number(
-              (parsePrice.buy * (1 - buyPercent / 100)).toFixed(2),
-            );
+          const buyValue = parseFloat(currency.BuyProcent);
+          if (currency.BuyProcent.includes('%')) {
+            newBuy = Number((buyParsePrice * (1 - buyValue / 100)).toFixed(2));
           } else {
-            const buyValue = parseFloat(currency.BuyProcent);
-            if (!isNaN(buyValue)) {
-              newBuy = Number((parsePrice.buy - buyValue).toFixed(2));
-            }
+            newBuy = Number((buyParsePrice - buyValue).toFixed(2));
           }
         }
 
         // Пересчитываем курс продажи
         if (currency.SellProcent) {
-          const sellPercent = parseFloat(currency.SellProcent.replace('%', ''));
-          if (!isNaN(sellPercent)) {
+          const sellValue = parseFloat(currency.SellProcent);
+          if (currency.SellProcent.includes('%')) {
             newSell = Number(
-              (parsePrice.sell * (1 + sellPercent / 100)).toFixed(2),
+              (sellParsePrice * (1 + sellValue / 100)).toFixed(2),
             );
           } else {
-            const sellValue = parseFloat(currency.SellProcent);
-            if (!isNaN(sellValue)) {
-              newSell = Number((parsePrice.sell + sellValue).toFixed(2));
-            }
+            newSell = Number((sellParsePrice + sellValue).toFixed(2));
           }
         }
 
