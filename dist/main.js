@@ -8,7 +8,7 @@ async function bootstrap() {
     const configService = app.get(config_1.ConfigService);
     const token = configService.get('TELEGRAM_BOT_TOKEN');
     console.log('Bot token:', token ? 'present' : 'missing');
-    await app.listen(3001);
+    await app.listen(3000);
 }
 bootstrap();
 //# sourceMappingURL=main.js.map
