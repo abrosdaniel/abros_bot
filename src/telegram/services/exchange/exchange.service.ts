@@ -349,9 +349,10 @@ export class ExchangeService {
             `Текущий шаблон:\n\n\`\`\`\n${currentTemplate}\n\`\`\`\n\n` +
             `📝 Доступные переменные в шаблоне:\n\n\`\`\`\n${variablesInfo}\n\`\`\`\n\n` +
             `Пример использования:\n\n\`\`\`\n${exampleUsage}\n\`\`\`\n\n` +
-            `Отправьте новый шаблон или нажмите "Назад"`,
+            `Отправьте новый шаблон или нажмите "Назад"\n\n` +
+            `*Поддерживается MarkdownV2 форматирование*`,
           {
-            parse_mode: 'Markdown',
+            parse_mode: 'MarkdownV2',
             ...Markup.inlineKeyboard([
               [
                 Markup.button.callback(
@@ -468,14 +469,12 @@ export class ExchangeService {
     let errorCount = 0;
 
     for (const resource of resources.list) {
-      // Пропускаем ресурсы с выключенной автопубликацией
       if (resource.auto_publish === 0) continue;
 
       try {
         const template = resource.template;
         let message = template;
 
-        // Заменяем переменные для каждой валюты
         currencies.forEach((currency) => {
           const code = currency.Code;
           message = message
@@ -486,35 +485,17 @@ export class ExchangeService {
             .replace(new RegExp(`{${code}\.symbol}`, 'g'), currency.Symbol);
         });
 
-        // Проверяем, является ли бот администратором
-        const admins = await this.bot.telegram.getChatAdministrators(
-          resource.telegram_id,
-        );
-        const isAdmin = admins.some(
-          (admin) => admin.user.id === this.bot.botInfo.id,
-        );
-
         const messageOptions = {
-          parse_mode: 'HTML' as const,
+          parse_mode: 'MarkdownV2' as const,
           link_preview_options: { is_disabled: true },
           disable_notification: true,
         };
 
-        if (isAdmin) {
-          // Публикуем от имени канала/чата
-          await this.bot.telegram.sendMessage(
-            resource.telegram_id,
-            message,
-            messageOptions,
-          );
-        } else {
-          // Публикуем от имени бота
-          await this.bot.telegram.sendMessage(
-            resource.telegram_id,
-            message,
-            messageOptions,
-          );
-        }
+        await this.bot.telegram.sendMessage(
+          resource.telegram_id,
+          message,
+          messageOptions,
+        );
 
         successCount++;
       } catch (error) {
