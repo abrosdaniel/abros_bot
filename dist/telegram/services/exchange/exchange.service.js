@@ -261,24 +261,26 @@ let ExchangeService = class ExchangeService {
                     return;
                 }
                 const currentTemplate = resource.template;
-                const variablesInfo = `{EUR.flag} - флаг валюты (например: 🇪🇺)
-{EUR.currency} - код валюты (например: EUR)
+                const variablesInfo = `{EUR.name} - название валюты (например: Евро)
+{EUR.code} - код валюты (например: EUR)
+{EUR.flag} - флаг валюты (например: 🇪🇺)
 {EUR.buy} - курс покупки
 {EUR.sell} - курс продажи
 {EUR.symbol} - символ валюты (например: €)`;
-                const exampleUsage = `{EUR.flag}{EUR.currency}
-Покупка: {EUR.buy} {EUR.symbol}
-Продажа: {EUR.sell} {EUR.symbol}
-
-{USD.flag}{USD.currency}
-Покупка: {USD.buy} {USD.symbol}
-Продажа: {USD.sell} {USD.symbol}`;
-                await ctx.editMessageText(`📝 Шаблон сообщения для ${resource.name}\n\n` +
-                    `Текущий шаблон:\n\n\`\`\`\n${currentTemplate}\n\`\`\`\n\n` +
-                    `📝 Доступные переменные в шаблоне:\n\n\`\`\`\n${variablesInfo}\n\`\`\`\n\n` +
-                    `Пример использования:\n\n\`\`\`\n${exampleUsage}\n\`\`\`\n\n` +
+                const formattingInfo = `<b>жирный текст</b> - &lt;b&gt;текст&lt;/b&gt;
+<i>курсив</i> - &lt;i&gt;текст&lt;/i&gt;
+<u>подчеркнутый</u> - &lt;u&gt;текст&lt;/u&gt;
+<s>зачеркнутый</s> - &lt;s&gt;текст&lt;/s&gt;
+<code>моноширинный</code> - &lt;code&gt;текст&lt;/code&gt;
+блок цитаты как этот - &lt;blockquote&gt;текст&lt;/blockquote&gt;
+<a href="https://t.me/et0daniel">ссылка текстом</a> - &lt;a href="url"&gt;текст&lt;/a&gt;`;
+                await ctx.editMessageText(`<b>📝 Шаблон сообщения для ${resource.name}</b>\n\n` +
+                    `<b>Текущее сообщение:</b>\n<blockquote>${currentTemplate}</blockquote>\n\n` +
+                    `<b>Доступные переменные:</b>\n<blockquote>${variablesInfo}</blockquote>\n\n` +
+                    `<b>Доступные виды форматирования:</b>\n<blockquote>${formattingInfo}</blockquote>\n\n` +
                     `Отправьте новый шаблон или нажмите "Назад"`, {
-                    parse_mode: 'Markdown',
+                    parse_mode: 'HTML',
+                    link_preview_options: { is_disabled: true },
                     ...telegraf_1.Markup.inlineKeyboard([
                         [
                             telegraf_1.Markup.button.callback('↩️ Назад', `exchange_resource_view_${id}`),
@@ -381,25 +383,19 @@ let ExchangeService = class ExchangeService {
                 currencies.forEach((currency) => {
                     const code = currency.Code;
                     message = message
+                        .replace(new RegExp(`{${code}\.name}`, 'g'), currency.Name)
+                        .replace(new RegExp(`{${code}\.code}`, 'g'), currency.Code)
                         .replace(new RegExp(`{${code}\.flag}`, 'g'), currency.Flag)
-                        .replace(new RegExp(`{${code}\.currency}`, 'g'), currency.Code)
                         .replace(new RegExp(`{${code}\.buy}`, 'g'), currency.Buy)
                         .replace(new RegExp(`{${code}\.sell}`, 'g'), currency.Sell)
                         .replace(new RegExp(`{${code}\.symbol}`, 'g'), currency.Symbol);
                 });
-                const admins = await this.bot.telegram.getChatAdministrators(resource.telegram_id);
-                const isAdmin = admins.some((admin) => admin.user.id === this.bot.botInfo.id);
                 const messageOptions = {
                     parse_mode: 'HTML',
                     link_preview_options: { is_disabled: true },
                     disable_notification: true,
                 };
-                if (isAdmin) {
-                    await this.bot.telegram.sendMessage(resource.telegram_id, message, messageOptions);
-                }
-                else {
-                    await this.bot.telegram.sendMessage(resource.telegram_id, message, messageOptions);
-                }
+                await this.bot.telegram.sendMessage(resource.telegram_id, message, messageOptions);
                 successCount++;
             }
             catch (error) {
