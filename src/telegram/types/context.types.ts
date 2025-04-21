@@ -8,6 +8,7 @@ export interface SessionData {
   waitingForResource?: boolean;
   waitingForNews?: boolean;
   waitingForTemplate?: { resourceId: string };
+  currentResourcesPage?: number;
 }
 
 export interface MyContext extends Context {

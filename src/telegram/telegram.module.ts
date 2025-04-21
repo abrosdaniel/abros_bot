@@ -1,14 +1,13 @@
 import { Module } from '@nestjs/common';
 import { TelegrafModule } from 'nestjs-telegraf';
-import { TelegramService } from './telegram.service';
+import { TelegramUpdate } from './telegram.update';
 import { NocoDBService } from '../database/nocodb.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { AccountService } from './account.service';
-import { AdminService } from './admin.service';
-import { TipTopModule } from './clients/tiptop/tiptop.module';
-import { TipTopDBModule } from '../database/clients/tiptop/tiptop-db.module';
+import { UserService } from './account/user.service';
+import { AdminService } from './account/admin.service';
+import { ExchangeModule } from './services/exchange/exchange.module';
+import { ExchangeDBModule } from '../database/services/exchange/exchange.module';
 import { session } from 'telegraf';
-import { MyContext } from './types/context.types';
 
 @Module({
   imports: [
@@ -26,10 +25,10 @@ import { MyContext } from './types/context.types';
       }),
       inject: [ConfigService],
     }),
-    TipTopModule,
-    TipTopDBModule,
+    ExchangeModule,
+    ExchangeDBModule,
   ],
-  providers: [TelegramService, NocoDBService, AccountService, AdminService],
-  exports: [TelegramService],
+  providers: [TelegramUpdate, NocoDBService, UserService, AdminService],
+  exports: [TelegramUpdate],
 })
 export class TelegramModule {}

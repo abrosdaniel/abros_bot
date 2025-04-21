@@ -25,6 +25,7 @@
     "@nestjs/core": "^10.0.0",
     "@nestjs/platform-express": "^10.4.17",
     "axios": "^1.6.2",
+    "libphonenumber-js": "^1.12.7",
     "nestjs-telegraf": "^2.2.1",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.1",

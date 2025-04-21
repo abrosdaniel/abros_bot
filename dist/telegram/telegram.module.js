@@ -9,14 +9,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.TelegramModule = void 0;
 const common_1 = require("@nestjs/common");
 const nestjs_telegraf_1 = require("nestjs-telegraf");
-const telegram_service_1 = require("./telegram.service");
+const telegram_update_1 = require("./telegram.update");
 const nocodb_service_1 = require("../database/nocodb.service");
 const config_1 = require("@nestjs/config");
-const account_service_1 = require("./account.service");
-const admin_service_1 = require("./admin.service");
-const tiptop_module_1 = require("./clients/tiptop/tiptop.module");
-const tiptop_service_1 = require("./clients/tiptop/tiptop.service");
-const tiptop_db_module_1 = require("../database/clients/tiptop/tiptop-db.module");
+const user_service_1 = require("./account/user.service");
+const admin_service_1 = require("./account/admin.service");
+const exchange_module_1 = require("./services/exchange/exchange.module");
+const exchange_module_2 = require("../database/services/exchange/exchange.module");
 const telegraf_1 = require("telegraf");
 let TelegramModule = class TelegramModule {
 };
@@ -38,17 +37,11 @@ exports.TelegramModule = TelegramModule = __decorate([
                 }),
                 inject: [config_1.ConfigService],
             }),
-            tiptop_module_1.TipTopModule,
-            tiptop_db_module_1.TipTopDBModule,
+            exchange_module_1.ExchangeModule,
+            exchange_module_2.ExchangeDBModule,
         ],
-        providers: [
-            telegram_service_1.TelegramService,
-            nocodb_service_1.NocoDBService,
-            account_service_1.AccountService,
-            admin_service_1.AdminService,
-            tiptop_service_1.TipTopService,
-        ],
-        exports: [telegram_service_1.TelegramService],
+        providers: [telegram_update_1.TelegramUpdate, nocodb_service_1.NocoDBService, user_service_1.UserService, admin_service_1.AdminService],
+        exports: [telegram_update_1.TelegramUpdate],
     })
 ], TelegramModule);
 //# sourceMappingURL=telegram.module.js.map

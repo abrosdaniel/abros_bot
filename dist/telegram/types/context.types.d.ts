@@ -9,6 +9,7 @@ export interface SessionData {
     waitingForTemplate?: {
         resourceId: string;
     };
+    currentResourcesPage?: number;
 }
 export interface MyContext extends Context {
     session: SessionData;
