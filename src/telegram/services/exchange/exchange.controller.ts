@@ -92,9 +92,24 @@ export class ExchangeController implements OnModuleInit {
         }
 
         const users = await this.nocodbService.getAllUsers();
-        const developers = users.filter((user) =>
-          this.userService.isDeveloperUser(user.telegram_id),
-        );
+
+        const developers = [];
+        for (const user of users) {
+          const isDev = await this.userService.isDeveloperUser(
+            user.telegram_id,
+          );
+          if (isDev) {
+            developers.push(user);
+          }
+        }
+
+        if (developers.length === 0) {
+          return res.status(HttpStatus.OK).json({
+            status: 'success',
+            message: 'No developers found to send error notification',
+          });
+        }
+
         const errorMessage = `⚠️ Ошибка в обменнике:\n\n${body.text}`;
 
         for (const developer of developers) {
@@ -106,9 +121,10 @@ export class ExchangeController implements OnModuleInit {
                 parse_mode: 'HTML',
               },
             );
+            console.log('Message sent to developer:', developer.user_id);
           } catch (error) {
             console.error(
-              `Failed to send error message to developer ${developer.telegram_id}:`,
+              `Failed to send error message to developer ${developer.user_id}:`,
               error,
             );
           }
@@ -117,6 +133,7 @@ export class ExchangeController implements OnModuleInit {
         return res.status(HttpStatus.OK).json({
           status: 'success',
           message: 'Error notification sent to developers',
+          developersCount: developers.length,
         });
       } catch (error) {
         console.error('Error sending error notification:', error);

@@ -47,10 +47,6 @@ let ExchangeController = class ExchangeController {
         console.log('--------------------------------\n');
     }
     async handleWebhook(apiKey, body, res) {
-        console.log('Received API request:', {
-            body,
-            hasApiKey: !!apiKey,
-        });
         if (!apiKey || apiKey !== this.apiKey) {
             console.log('Access denied: Invalid API key');
             return res.status(common_1.HttpStatus.FORBIDDEN).json({
@@ -85,21 +81,35 @@ let ExchangeController = class ExchangeController {
                     });
                 }
                 const users = await this.nocodbService.getAllUsers();
-                const developers = users.filter((user) => this.userService.isDeveloperUser(user.telegram_id));
+                const developers = [];
+                for (const user of users) {
+                    const isDev = await this.userService.isDeveloperUser(user.telegram_id);
+                    if (isDev) {
+                        developers.push(user);
+                    }
+                }
+                if (developers.length === 0) {
+                    return res.status(common_1.HttpStatus.OK).json({
+                        status: 'success',
+                        message: 'No developers found to send error notification',
+                    });
+                }
                 const errorMessage = `⚠️ Ошибка в обменнике:\n\n${body.text}`;
                 for (const developer of developers) {
                     try {
                         await this.bot.telegram.sendMessage(developer.telegram_id, errorMessage, {
                             parse_mode: 'HTML',
                         });
+                        console.log('Message sent to developer:', developer.user_id);
                     }
                     catch (error) {
-                        console.error(`Failed to send error message to developer ${developer.telegram_id}:`, error);
+                        console.error(`Failed to send error message to developer ${developer.user_id}:`, error);
                     }
                 }
                 return res.status(common_1.HttpStatus.OK).json({
                     status: 'success',
                     message: 'Error notification sent to developers',
+                    developersCount: developers.length,
                 });
             }
             catch (error) {

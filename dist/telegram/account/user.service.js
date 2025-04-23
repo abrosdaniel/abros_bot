@@ -174,7 +174,9 @@ ${this.formatServices(user.services)}`;
     }
     async isDeveloperUser(telegramId) {
         const user = await this.nocodbService.findUser(telegramId);
-        return user?.services?.includes('Developer') || false;
+        if (!user?.roles)
+            return false;
+        return user.roles.includes('Developer');
     }
 };
 exports.UserService = UserService;
