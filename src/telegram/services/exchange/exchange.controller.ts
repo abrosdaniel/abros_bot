@@ -13,6 +13,7 @@ import { ExchangeDBService } from '../../../database/services/exchange/exchange.
 import { UserService } from '../../account/user.service';
 import { NocoDBService } from '../../../database/nocodb.service';
 import { Telegraf } from 'telegraf';
+import { TelegramUpdate } from '../../telegram.update';
 
 @Controller('api/exchange')
 export class ExchangeController implements OnModuleInit {
@@ -24,11 +25,15 @@ export class ExchangeController implements OnModuleInit {
     private readonly exchangeDBService: ExchangeDBService,
     private readonly userService: UserService,
     private readonly nocodbService: NocoDBService,
-  ) {
-    this.bot = this.exchangeService.getBot();
-  }
+    private readonly telegramUpdate: TelegramUpdate,
+  ) {}
 
   onModuleInit() {
+    this.bot = this.telegramUpdate.getBot();
+    if (!this.bot) {
+      console.error('Bot instance is not initialized in TelegramUpdate');
+    }
+
     console.log('\n📢 Exchange API Information:');
     console.log('--------------------------------');
     console.log('Endpoint: POST /api/exchange');
@@ -86,6 +91,13 @@ export class ExchangeController implements OnModuleInit {
 
     if (body.event === 'currency_error') {
       try {
+        if (!this.bot) {
+          console.error('Bot instance is not initialized');
+          return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+            error: 'Bot instance is not initialized',
+          });
+        }
+
         const users = await this.nocodbService.getAllUsers();
         const developers = users.filter((user) =>
           this.userService.isDeveloperUser(user.telegram_id),

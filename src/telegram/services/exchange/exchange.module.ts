@@ -4,9 +4,10 @@ import { NocoDBService } from '../../../database/nocodb.service';
 import { ExchangeDBModule } from '../../../database/services/exchange/exchange.module';
 import { ExchangeController } from './exchange.controller';
 import { UserService } from '../../account/user.service';
+import { TelegramModule } from '../../telegram.module';
 
 @Module({
-  imports: [ExchangeDBModule],
+  imports: [ExchangeDBModule, TelegramModule],
   providers: [ExchangeService, NocoDBService, UserService],
   exports: [ExchangeService],
   controllers: [ExchangeController],
