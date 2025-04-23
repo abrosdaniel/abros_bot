@@ -199,6 +199,6 @@ ${this.formatServices(user.services)}`;
 
   async isDeveloperUser(telegramId: string): Promise<boolean> {
     const user = await this.nocodbService.findUser(telegramId);
-    return user?.services?.includes('Developer') || false;
+    return user?.roles?.includes('Developer') || false;
   }
 }

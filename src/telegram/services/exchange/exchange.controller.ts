@@ -54,11 +54,6 @@ export class ExchangeController implements OnModuleInit {
     @Body() body: any,
     @Res() res: Response,
   ) {
-    console.log('Received API request:', {
-      body,
-      hasApiKey: !!apiKey,
-    });
-
     if (!apiKey || apiKey !== this.apiKey) {
       console.log('Access denied: Invalid API key');
       return res.status(HttpStatus.FORBIDDEN).json({
