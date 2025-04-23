@@ -71,13 +71,19 @@ export class UserService {
     if (!user) return null;
 
     return `📱 Ваш профиль:
-🆔 Системный: ${user.user_id} | Telegram: ${user.telegram_id}
 
-👤 Имя: ${user.first_name || 'Не указано'}
-👤 Фамилия: ${user.last_name || 'Не указана'}
-📮 Email: ${user.email || 'Не указан'}
-📞 Телефон: ${user.phone || 'Не указан'}
-📅 Зарегистрирован: ${this.formatDate(user.CreatedAt)}
+🆔
+├ Системный: ${user.user_id}
+└ Telegram: ${user.telegram_id}
+
+👤 
+├ Имя: ${user.first_name || 'Не указано'}
+├ Фамилия: ${user.last_name || 'Не указана'}
+├ Email: ${user.email || 'Не указан'}
+└ Телефон: ${user.phone || 'Не указан'}
+
+📅
+└ Регистрация ${this.formatDate(user.CreatedAt)}
 
 🔑 Роли:
 ${this.formatRoles(user.roles)}
@@ -91,8 +97,10 @@ ${this.formatServices(user.services)}`;
 
   async getAccountKeyboard(telegramId: string) {
     const buttons = [
-      [Markup.button.callback('🗂️ Мои подписки', 'my_subscriptions')],
-      [Markup.button.callback('🛠️ Мои сервисы', 'my_services')],
+      [
+        Markup.button.callback('🗂️ Мои подписки', 'my_subscriptions'),
+        Markup.button.callback('🛠️ Мои сервисы', 'my_services'),
+      ],
       [Markup.button.callback('✏️ Редактировать профиль', 'edit_account')],
     ];
 
@@ -187,5 +195,10 @@ ${this.formatServices(user.services)}`;
     } catch (error) {
       return false;
     }
+  }
+
+  async isDeveloperUser(telegramId: string): Promise<boolean> {
+    const user = await this.nocodbService.findUser(telegramId);
+    return user?.services?.includes('Developer') || false;
   }
 }

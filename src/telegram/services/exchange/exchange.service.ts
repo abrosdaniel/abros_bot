@@ -17,6 +17,10 @@ export class ExchangeService {
     this.bot = bot;
   }
 
+  getBot(): Telegraf {
+    return this.bot;
+  }
+
   async isExchangeUser(telegramId: string): Promise<boolean> {
     const user = await this.nocodbService.findUser(telegramId);
     return user?.services?.includes('Exchange') || false;
