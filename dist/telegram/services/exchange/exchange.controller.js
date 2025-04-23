@@ -25,9 +25,12 @@ let ExchangeController = class ExchangeController {
         this.userService = userService;
         this.nocodbService = nocodbService;
         this.apiKey = process.env.EXCHANGE_WEBHOOK_KEY;
-        this.bot = this.exchangeService.getBot();
     }
     onModuleInit() {
+        this.bot = this.exchangeService.getBot();
+        if (!this.bot) {
+            console.error('Bot instance is not initialized in ExchangeService');
+        }
         console.log('\n📢 Exchange API Information:');
         console.log('--------------------------------');
         console.log('Endpoint: POST /api/exchange');
@@ -75,6 +78,12 @@ let ExchangeController = class ExchangeController {
         }
         if (body.event === 'currency_error') {
             try {
+                if (!this.bot) {
+                    console.error('Bot instance is not initialized');
+                    return res.status(common_1.HttpStatus.INTERNAL_SERVER_ERROR).json({
+                        error: 'Bot instance is not initialized',
+                    });
+                }
                 const users = await this.nocodbService.getAllUsers();
                 const developers = users.filter((user) => this.userService.isDeveloperUser(user.telegram_id));
                 const errorMessage = `⚠️ Ошибка в обменнике:\n\n${body.text}`;
