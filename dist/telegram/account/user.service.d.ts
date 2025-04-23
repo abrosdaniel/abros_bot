@@ -18,4 +18,5 @@ export declare class UserService {
     }>;
     private isValidEmail;
     private isValidPhone;
+    isDeveloperUser(telegramId: string): Promise<boolean>;
 }

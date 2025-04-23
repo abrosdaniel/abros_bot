@@ -22,6 +22,9 @@ let ExchangeService = class ExchangeService {
     setBotInstance(bot) {
         this.bot = bot;
     }
+    getBot() {
+        return this.bot;
+    }
     async isExchangeUser(telegramId) {
         const user = await this.nocodbService.findUser(telegramId);
         return user?.services?.includes('Exchange') || false;

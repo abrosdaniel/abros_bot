@@ -8,6 +8,7 @@ export declare class ExchangeService {
     private bot;
     constructor(nocodbService: NocoDBService, exchangeDBService: ExchangeDBService);
     setBotInstance(bot: Telegraf): void;
+    getBot(): Telegraf;
     isExchangeUser(telegramId: string): Promise<boolean>;
     getExchangeKeyboard(): Markup.Markup<import("@telegraf/types").InlineKeyboardMarkup>;
     getCurrenciesKeyboard(): Promise<Markup.Markup<import("@telegraf/types").InlineKeyboardMarkup>>;
