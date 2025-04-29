@@ -14,9 +14,9 @@ import { UserService } from '../../account/user.service';
 import { NocoDBService } from '../../../database/nocodb.service';
 import { Telegraf } from 'telegraf';
 
-@Controller('api/exchange')
+@Controller('api/v1')
 export class ExchangeController implements OnModuleInit {
-  private readonly apiKey = process.env.EXCHANGE_WEBHOOK_KEY;
+  private readonly apiKey = process.env.EXCHANGE_API_KEY;
   private bot: Telegraf;
 
   constructor(
@@ -48,7 +48,7 @@ export class ExchangeController implements OnModuleInit {
     console.log('--------------------------------\n');
   }
 
-  @Post()
+  @Post('exchange')
   async handleWebhook(
     @Headers('x-exchange-key') apiKey: string,
     @Body() body: any,

@@ -15,7 +15,7 @@ import { session } from 'telegraf';
     TelegrafModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
-        token: configService.get<string>('TELEGRAM_BOT_TOKEN'),
+        token: configService.get<string>('BOT_TOKEN'),
         middlewares: [
           session({
             defaultSession: () => ({}),

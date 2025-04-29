@@ -27,7 +27,7 @@ exports.TelegramModule = TelegramModule = __decorate([
             nestjs_telegraf_1.TelegrafModule.forRootAsync({
                 imports: [config_1.ConfigModule],
                 useFactory: (configService) => ({
-                    token: configService.get('TELEGRAM_BOT_TOKEN'),
+                    token: configService.get('BOT_TOKEN'),
                     middlewares: [
                         (0, telegraf_1.session)({
                             defaultSession: () => ({}),

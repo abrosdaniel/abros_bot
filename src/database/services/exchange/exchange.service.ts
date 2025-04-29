@@ -7,8 +7,8 @@ export class ExchangeDBService {
   private readonly apiKey: string;
 
   constructor() {
-    this.baseUrl = process.env.NOCODB_URL;
-    this.apiKey = process.env.NOCODB_API_KEY;
+    this.baseUrl = process.env.BASE_URL;
+    this.apiKey = process.env.BASE_API_KEY;
   }
 
   async getCurrencies() {

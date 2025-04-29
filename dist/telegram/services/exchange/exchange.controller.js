@@ -24,7 +24,7 @@ let ExchangeController = class ExchangeController {
         this.exchangeDBService = exchangeDBService;
         this.userService = userService;
         this.nocodbService = nocodbService;
-        this.apiKey = process.env.EXCHANGE_WEBHOOK_KEY;
+        this.apiKey = process.env.EXCHANGE_API_KEY;
     }
     onModuleInit() {
         this.bot = this.exchangeService.getBot();
@@ -127,7 +127,7 @@ let ExchangeController = class ExchangeController {
 };
 exports.ExchangeController = ExchangeController;
 __decorate([
-    (0, common_1.Post)(),
+    (0, common_1.Post)('exchange'),
     __param(0, (0, common_1.Headers)('x-exchange-key')),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, common_1.Res)()),
@@ -136,7 +136,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], ExchangeController.prototype, "handleWebhook", null);
 exports.ExchangeController = ExchangeController = __decorate([
-    (0, common_1.Controller)('api/exchange'),
+    (0, common_1.Controller)('api/v1'),
     __metadata("design:paramtypes", [exchange_service_1.ExchangeService,
         exchange_service_2.ExchangeDBService,
         user_service_1.UserService,

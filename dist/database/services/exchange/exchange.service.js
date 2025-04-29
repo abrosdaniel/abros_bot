@@ -14,8 +14,8 @@ const common_1 = require("@nestjs/common");
 const axios_1 = require("axios");
 let ExchangeDBService = class ExchangeDBService {
     constructor() {
-        this.baseUrl = process.env.NOCODB_URL;
-        this.apiKey = process.env.NOCODB_API_KEY;
+        this.baseUrl = process.env.BASE_URL;
+        this.apiKey = process.env.BASE_API_KEY;
     }
     async getCurrencies() {
         try {

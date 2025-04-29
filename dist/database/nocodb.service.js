@@ -14,8 +14,8 @@ const common_1 = require("@nestjs/common");
 const axios_1 = require("axios");
 let NocoDBService = class NocoDBService {
     constructor() {
-        this.baseUrl = process.env.NOCODB_URL;
-        this.apiKey = process.env.NOCODB_API_KEY;
+        this.baseUrl = process.env.BASE_URL;
+        this.apiKey = process.env.BASE_API_KEY;
     }
     generateUserId() {
         return Math.floor(100000000 + Math.random() * 900000000).toString();
